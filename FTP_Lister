@@ -1,0 +1,64 @@
+from ftplib import FTP
+from urllib.parse import quote
+import os
+
+# FTP 伺服器詳情
+ftp_host = "XXX"
+ftp_user = "XXX"
+ftp_pass = "XXX"
+
+# 要轉換的 FTP 路徑
+ftp_path = "XXX"
+
+# 對應的 HTTPS 首碼
+https_prefix = "XXX"
+
+def list_ftp_files(ftp, path):
+    """ 遞迴地列出 FTP 路徑下的所有檔 """
+    file_list = []
+    ftp.cwd(path)
+    items = ftp.nlst()
+    for item in items:
+        # 忽略特殊目錄
+        if item in [".", ".."]:
+            continue
+        try:
+            full_path = path + item
+            if '.' in item:  # 假設檔案名中含點（.）的為文件
+                file_list.append(full_path)
+            else:
+                file_list.extend(list_ftp_files(ftp, full_path + "/"))
+        except Exception as e:
+            pass  # 忽略錯誤，繼續
+    return file_list
+
+def convert_to_https(file_list, ftp_root, https_prefix):
+    """ 將 FTP 檔路徑轉換為 HTTPS 路徑 """
+    https_urls = []
+    for file_name in file_list:
+        path, file = os.path.split(file_name)
+        encoded_path = quote(path.replace(ftp_root, ""))
+        https_url = f"{https_prefix.rstrip('/')}/{encoded_path.lstrip('/')}/{file}"
+        https_urls.append(https_url)
+    return https_urls
+
+# 連接到 FTP 伺服器
+ftp = FTP(ftp_host)
+ftp.login(user=ftp_user, passwd=ftp_pass)
+
+# 獲取檔列表並轉換
+file_list = list_ftp_files(ftp, ftp_path)
+https_urls = convert_to_https(file_list, ftp_path, https_prefix)
+
+# 將 HTTPS 路徑保存到文字檔
+output_file = "https_urls.txt"
+with open(output_file, "w") as file:
+    for url in https_urls:
+        file.write(url + "\n")
+
+print(f"所有 HTTPS 路徑已保存到 {output_file}")
+
+# 斷開 FTP 連接
+ftp.quit()
+
+
